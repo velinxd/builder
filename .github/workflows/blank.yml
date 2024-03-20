@@ -1,0 +1,50 @@
+name: ROM Build and Upload
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up SSH keys
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Install Required Packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nano bc bison ca-certificates curl flex gcc git libc6-dev libssl-dev openssl python-is-python3 ssh wget zip zstd sudo make clang gcc-arm-linux-gnueabi software-properties-common build-essential libarchive-tools gcc-aarch64-linux-gnu pigz python2 python3 cpio lld
+
+    - name: Clone ROM Repository
+      run: git clone ${{ secrets.ROM_REPO }} --branch ${{ secrets.BRANCH_NAME }}
+
+    - name: Clone Device Tree
+      run: git clone ${{ secrets.DEVICE_TREE }} ${{ secrets.WORK_DIR2 }}/${{ secrets.BRAND_NAME }}/${{ secrets.PRODUCT_NAME }}
+
+    - name: Clone Vendor Tree
+      run: git clone ${{ secrets.VENDOR_TREE }} ${{ secrets.WORK_DIR3 }}/${{ secrets.BRAND_NAME }}/${{ secrets.PRODUCT_NAME }}
+
+    - name: Clone Kernel Tree
+      run: git clone ${{ secrets.KERNEL_TREE }} ${{ secrets.WORK_DIR4 }}/${{ secrets.BRAND_NAME }}/${{ secrets.NAME_PRODUCT }}
+
+    - name: Configure Environment
+      run: source ${{ secrets.ENVSETUP_PATH }}
+
+    - name: Choose Device Configuration
+      run: lunch superior_${{ secrets.DEVICE }}-userdebug
+
+    - name: Compile ROM
+      run: mka bacon -j${{ secrets.THREAD_COUNT }}
+
+    - name: Upload ROM
+      if: success()
+      run: |
+        scp -P ${{ secrets.SSH_PORT }} ${{ secrets.ROM_NAME }}-${{ github.run_number }}.zip ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_DESTINATION }}
